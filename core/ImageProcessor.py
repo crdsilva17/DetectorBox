@@ -1,0 +1,17 @@
+import cv2
+
+from numpy import ndarray
+
+class ImageProcessor:
+    @staticmethod
+    def resize_image(image: ndarray, width: int, height: int) -> ndarray:
+        return cv2.resize(image, (width, height), interpolation=cv2.INTER_LINEAR)
+
+    @staticmethod
+    def convert_to_grayscale(image: ndarray) -> ndarray:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+
+    @staticmethod
+    def apply_gaussian_blur(image: ndarray, kernel_size: tuple = (5, 5)) -> ndarray:
+        return cv2.GaussianBlur(image, kernel_size, 0)
+    
