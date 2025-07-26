@@ -22,9 +22,9 @@ def main():
         sys.exit(1)
     # Cria detector disponível
     # Aqui você pode especificar o caminho do modelo que deseja usar
-    detector = Detector()
+    detectors = Detector()
     # Cria a janela principal
-    window = Screen01(cameras, detector)
+    window = Screen01(cameras, detectors)
     window.show()
     app.exec_()
     # Libera recursos das câmeras

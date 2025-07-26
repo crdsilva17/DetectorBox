@@ -21,6 +21,23 @@ class ROILabel(QLabel):
             self.parent_screen.end_roi(ev)
 
 class Screen01(QWidget):
+    def __init__(self, cameras, detector):
+        super().__init__()
+        self.cameras = cameras  # Dict: {name: Camera}
+        self.selected_camera = None
+        self.selected_detector = detector
+        self.vlayout = QVBoxLayout()
+        self.roi_start = [100, 100]
+        self.roi_end = [250, 250]
+        self.roi_rect = (self.roi_start[0], self.roi_start[1], 
+                         self.roi_end[0], self.roi_end[1])
+        self._scale = 1.0
+        self._offset_x = 0
+        self._offset_y = 0
+        self.last_frame = None
+        self.editing_roi = False
+        self.drag_offset = None
+        self.init_ui()
     # --- Métodos de manipulação de ROI via mouse ---
     def start_roi(self, event):
         if not self.editing_roi or self.last_frame is None:
@@ -107,23 +124,6 @@ class Screen01(QWidget):
         x_img = max(0, min(x_img, w - 1))
         y_img = max(0, min(y_img, h - 1))
         return x_img, y_img
-    def __init__(self, cameras, detector):
-        super().__init__()
-        self.cameras = cameras  # Dict: {name: Camera}
-        self.selected_camera = None
-        self.selected_detector = detector
-        self.vlayout = QVBoxLayout()
-        self.roi_start = [100, 100]
-        self.roi_end = [250, 250]
-        self.roi_rect = (self.roi_start[0], self.roi_start[1], 
-                         self.roi_end[0], self.roi_end[1])
-        self._scale = 1.0
-        self._offset_x = 0
-        self._offset_y = 0
-        self.last_frame = None
-        self.editing_roi = False
-        self.drag_offset = None
-        self.init_ui()
 
     def init_ui(self):
         self.setWindowTitle('DetectorBox - Seleção de Câmera e Detector')
@@ -136,7 +136,6 @@ class Screen01(QWidget):
         self.combo_camera.currentIndexChanged.connect(self.on_camera_change)
         self.vlayout.addWidget(self.combo_camera)
 
-
         # Botão para criar nova caixa/recipe
         self.btn_new_box = QPushButton('Nova Caixa/Recipe')
         self.vlayout.addWidget(self.btn_new_box)
@@ -148,7 +147,6 @@ class Screen01(QWidget):
         self.combo_recipe = QComboBox()
         self.update_recipe_list()
         self.vlayout.addWidget(self.combo_recipe)
-
 
         # Botão de captura
         self.capture_btn = QPushButton('Capturar Imagem')
@@ -174,8 +172,8 @@ class Screen01(QWidget):
         self.vlayout.addWidget(self.label_processed)
         self.setLayout(self.vlayout)
 
-        # Imagem preta inicial
-        black_img = np.zeros((500, 500, 3), dtype=np.uint8)
+        # Imagem preta inicial padronizada
+        black_img = np.zeros((480, 640, 3), dtype=np.uint8)
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
         # Desenha ROI sobre a imagem preta
