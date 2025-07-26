@@ -5,13 +5,13 @@ import cv2
 
 
 class Detector(ImageProcessor.ImageProcessor):
-    def __init__(self, model_path):
-        self.model_path = model_path
+    def __init__(self):
+        super().__init__()
     
     def save(self, image: ndarray, filename: str):
         if not isinstance(image, ndarray):
             raise TypeError("Input image must be a numpy ndarray.")
-        cv2.imwrite(f"{self.model_path}/{filename}", image)
+        cv2.imwrite(filename, image)
 
     def detect(self, image) -> ndarray:
         # Precess the image before detection

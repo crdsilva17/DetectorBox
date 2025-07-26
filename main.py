@@ -20,11 +20,11 @@ def main():
     if not cameras:
         print('Nenhuma câmera encontrada.')
         sys.exit(1)
-    # Cria detectores disponíveis
-    detectors = {
-        'Detector Padrão': Detector(model_path='modelos')
-    }
-    window = Screen01(cameras, detectors)
+    # Cria detector disponível
+    # Aqui você pode especificar o caminho do modelo que deseja usar
+    detector = Detector()
+    # Cria a janela principal
+    window = Screen01(cameras, detector)
     window.show()
     app.exec_()
     # Libera recursos das câmeras
