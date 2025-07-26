@@ -5,11 +5,10 @@ T = TypeVar('T')
 
 class Camera(ABC, Generic[T]):
 
-    def __init__(self, name: str, id: int, protocol: T):
+    def __init__(self, name: str, id: int):
         self.name = name
         self.id = id
-        self.protocol = protocol
     
     @abstractmethod
-    def capture(self):
+    def capture(self) -> T:
         pass
