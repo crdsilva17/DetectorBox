@@ -37,8 +37,8 @@ class Screen01(QWidget):
         self.last_frame = None
         self.editing_roi = False
         self.drag_offset = None
-        self._width = 900
-        self._height = 900
+        self._width = 1536
+        self._height = 500
         self.init_ui()
     # --- Métodos de manipulação de ROI via mouse ---
     def start_roi(self, event):
@@ -242,7 +242,7 @@ class Screen01(QWidget):
         original_hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_original = ROILabel()
         # Remover tamanho mínimo fixo para permitir expansão
-        # self.label_original.setMinimumSize(self._width, self._height)
+        self.label_original.setMinimumSize(self._width, self._height)
         self.label_original.setMaximumSize(max_width, max_height)
         self.label_original.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.label_original.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -259,7 +259,7 @@ class Screen01(QWidget):
         processed_hbox.setContentsMargins(0, 0, 0, 0)
         processed_hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_processed = QLabel()
-        # self.label_processed.setMinimumSize(self._width, self._height)
+        self.label_processed.setMinimumSize(self._width, self._height)
         self.label_processed.setMaximumSize(max_width, max_height)
         self.label_processed.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.label_processed.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -268,8 +268,8 @@ class Screen01(QWidget):
         processed_container.setLayout(processed_hbox)
         images_layout.addWidget(processed_container)
         # Adiciona um espaçador vertical para evitar expansão vertical indesejada
-        from PyQt5.QtWidgets import QSpacerItem, QSizePolicy as QSP
-        images_layout.addSpacerItem(QSpacerItem(20, 40, QSP.Minimum, QSP.Expanding))
+        # from PyQt5.QtWidgets import QSpacerItem, QSizePolicy as QSP
+        # images_layout.addSpacerItem(QSpacerItem(20, 40, QSP.Minimum, QSP.Expanding))
 
         # Adiciona layouts ao layout principal
         main_layout.addLayout(menu_layout, stretch=0)
@@ -279,7 +279,7 @@ class Screen01(QWidget):
         self.setLayout(main_layout)
 
         # Imagem preta inicial padronizada
-        black_img = np.zeros((max_height, max_width, 3), dtype=np.uint8)
+        black_img = np.zeros((self._height, self._width, 3), dtype=np.uint8)
         self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
@@ -296,7 +296,6 @@ class Screen01(QWidget):
         
         self.update_roi_overlay()
 
-        # Não recria widgets/layout nem redefine ROI aqui. Apenas alterna modo de edição.
     def update_recipe_list(self):
         self.combo_recipe.clear()
         import os
@@ -356,7 +355,7 @@ class Screen01(QWidget):
         camera_name = self.combo_camera.currentText()
         self.selected_camera = self.cameras[camera_name]
         # Redesenha imagem preta e ROI ao trocar de câmera
-        black_img = np.zeros((self._width, self._height, 3), dtype=np.uint8)
+        black_img = np.zeros((self._height, self._width, 3), dtype=np.uint8)
         self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
@@ -367,6 +366,7 @@ class Screen01(QWidget):
             return
         try:
             frame = self.selected_camera.capture()
+            frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
             print(f"[DEBUG] Frame capturado: shape={frame.shape} dtype={frame.dtype}")
         except Exception as e:
             self.label_original.setText(f'Falha ao capturar imagem: {e}')
@@ -384,6 +384,7 @@ class Screen01(QWidget):
         # Processamento pelo detector
         try:
             processed = self.selected_detector.detect(roi)
+            processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
             print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
         except Exception as e:
             self.label_processed.setText(f'Erro no processamento: {e}')
@@ -399,8 +400,8 @@ class Screen01(QWidget):
         bytes_per_line = ch * w
         qt_img = QImage(img.data, w, h, bytes_per_line, QImage.Format_BGR888)
         # Calcula o tamanho máximo possível mantendo proporção widescreen
-        label_width = label.width() if label.width() > 1 else max(self._width, 640)
-        label_height = label.height() if label.height() > 1 else max(self._height, 480)
+        label_width = label.width() if label.width() > 1 else self._width
+        label_height = label.height() if label.height() > 1 else self._height
         # Mantém proporção da imagem
         pixmap = QPixmap.fromImage(qt_img)
         scaled_pixmap = pixmap.scaled(label_width, label_height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
