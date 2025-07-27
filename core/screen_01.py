@@ -174,10 +174,12 @@ class Screen01(QWidget):
 
         # Imagem preta inicial padronizada
         black_img = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
         # Desenha ROI sobre a imagem preta
         self.update_roi_overlay()
+
     def toggle_edit_roi(self, checked):
         from PyQt5.QtGui import QCursor
         self.editing_roi = checked
@@ -185,6 +187,8 @@ class Screen01(QWidget):
             self.label_original.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
         else:
             self.label_original.setCursor(QCursor(Qt.CursorShape.ArrowCursor))
+        
+        self.update_roi_overlay()
 
         # Não recria widgets/layout nem redefine ROI aqui. Apenas alterna modo de edição.
     def update_recipe_list(self):
@@ -247,6 +251,7 @@ class Screen01(QWidget):
         self.selected_camera = self.cameras[camera_name]
         # Redesenha imagem preta e ROI ao trocar de câmera
         black_img = np.zeros((480, 640, 3), dtype=np.uint8)
+        self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
         self.update_roi_overlay()
@@ -288,8 +293,8 @@ class Screen01(QWidget):
         bytes_per_line = ch * w
         qt_img = QImage(img.data, w, h, bytes_per_line, QImage.Format_BGR888)
         # Calcula o tamanho do QLabel
-        label_width = label.width() if label.width() > 1 else 500
-        label_height = label.height() if label.height() > 1 else 500
+        label_width = label.width() if label.width() > 1 else 480
+        label_height = label.height() if label.height() > 1 else 640
         pixmap = QPixmap.fromImage(qt_img)
         scaled_pixmap = pixmap.scaled(label_width, label_height, Qt.AspectRatioMode.KeepAspectRatio)
         label.setPixmap(scaled_pixmap)
@@ -300,6 +305,6 @@ class Screen01(QWidget):
             self._scale = min(label_width / w, label_height / h)
             self._offset_x = (label_width - sw) // 2
             self._offset_y = (label_height - sh) // 2
-            self.last_frame = img.copy()
+            # self.last_frame NÃO deve ser atualizada aqui!
 
 
