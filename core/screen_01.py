@@ -1,8 +1,11 @@
+from calendar import c
+import re
 import cv2
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox
 from PyQt5.QtGui import QPixmap, QImage, QMouseEvent
 from PyQt5.QtCore import Qt
+from numpy import integer
 
 
 # Subclasse QLabel para capturar eventos de mouse corretamente
@@ -196,23 +199,31 @@ class Screen01(QWidget):
         menu_layout.addWidget(self.combo_recipe)
 
         # Botão para criar nova caixa/recipe
-        self.btn_new_box = QPushButton('Nova Caixa/Recipe')
+        self.btn_new_box = QPushButton('New Recipe')
+        self.btn_new_box.clicked.connect(self.create_new_box)
+        self.btn_new_box.setStyleSheet("background-color: #f0f0f0; color: black;")
         menu_layout.addWidget(self.btn_new_box)
 
-        # Botão de captura
-        self.capture_btn = QPushButton('Capturar Imagem')
-        self.capture_btn.setFixedSize(180, 50)
-        font = self.capture_btn.font()
-        font.setPointSize(14)
-        self.capture_btn.setFont(font)
-        self.capture_btn.clicked.connect(self.capture_image)
-        menu_layout.addWidget(self.capture_btn)
-
         # Botão para editar ROI
-        self.btn_edit_roi = QPushButton('Editar ROI')
+        self.btn_edit_roi = QPushButton('Edit Area')
+        self.btn_edit_roi.setFixedSize(200, 50)
+        self.btn_edit_roi.setStyleSheet("background-color: #f0f0f0; color: black;")
         self.btn_edit_roi.setCheckable(True)
         self.btn_edit_roi.toggled.connect(self.toggle_edit_roi)
         menu_layout.addWidget(self.btn_edit_roi)
+        
+        # Botão de captura
+        self.capture_btn = QPushButton('Photo')
+        self.capture_btn.setFixedSize(200, 80)
+        font = self.capture_btn.font()
+        font.setPointSize(14)
+        font.setBold(True)
+        font.setWeight(75)  # QtGui.QFont.Bold is 75
+        font.setFamily('Arial')
+        self.capture_btn.setStyleSheet("background-color: #4CAF50; color: white;")
+        self.capture_btn.setFont(font)
+        self.capture_btn.clicked.connect(self.capture_image)
+        menu_layout.addWidget(self.capture_btn)
 
         # Expansor para empurrar os botões para o topo
         menu_layout.addStretch(1)
@@ -285,6 +296,7 @@ class Screen01(QWidget):
         self.show_image(self.label_processed, black_img)
         # Desenha ROI sobre a imagem preta
         self.update_roi_overlay()
+        self.on_camera_change(self.combo_camera.currentIndex())  # Seleciona a primeira câmera por padrão
 
     def toggle_edit_roi(self, checked):
         from PyQt5.QtGui import QCursor
@@ -299,7 +311,7 @@ class Screen01(QWidget):
     def update_recipe_list(self):
         self.combo_recipe.clear()
         import os
-        recipes = [f for f in os.listdir(self.recipe_dir) if f.endswith('.json')]
+        recipes = [f.removesuffix('.json') for f in os.listdir(self.recipe_dir) if f.endswith('.json')]
         self.combo_recipe.addItems(recipes)
         if recipes:
             self.selected_recipe = recipes[0]
@@ -307,27 +319,31 @@ class Screen01(QWidget):
             self.selected_recipe = None
 
     def on_recipe_change(self, index):
-        self.selected_recipe = self.combo_recipe.currentText()
+        self.selected_recipe = self.combo_recipe.currentText() + ".json"
+        print(f"[DEBUG] Receita selecionada: {self.selected_recipe}")
 
     def create_new_box(self):
         from PyQt5.QtWidgets import QInputDialog
         import os
-        name, ok = QInputDialog.getText(self, 'Nova Caixa/Recipe', 'Nome do arquivo da caixa:')
+        name, ok = QInputDialog.getText(self, 'New Box/Recipe', 'FileName of Box:')
         if ok and name:
             path = os.path.join(self.recipe_dir, f'{name}.json')
             import json
-            box_data = {"layout": [4, 3], "info": "Exemplo"}
+            columns, ok = QInputDialog.getText(self, 'New Box/Recipe', 'columns of the box:')
+            if not columns or not ok:
+                return
+            rows, ok = QInputDialog.getText(self, 'New Box/Recipe', 'rows of the box:')
+            if not rows or not ok:
+                return
+
+            box_data = {"layout": [int(columns), int(rows)], "info": name}
             with open(path, 'w') as f:
                 json.dump(box_data, f, indent=2)
             self.update_recipe_list()
-    # --- Seleção de ROI ---
-        # ...existing code for start_roi...
 
-        # ...existing code for update_roi...
-
-        self.drag_offset = None
-        self.resizing = False
-        self.update_roi_overlay(final=True)
+        # self.drag_offset = None
+        # self.resizing = False
+        # self.update_roi_overlay(final=True)
 
     def update_roi_overlay(self, final=False):
         # Desenha o retângulo da ROI sobre a última imagem capturada
@@ -368,6 +384,7 @@ class Screen01(QWidget):
             frame = self.selected_camera.capture()
             frame = cv2.resize(frame, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
             print(f"[DEBUG] Frame capturado: shape={frame.shape} dtype={frame.dtype}")
+            self.on_recipe_change(self.combo_recipe.currentIndex())
         except Exception as e:
             self.label_original.setText(f'Falha ao capturar imagem: {e}')
             self.label_processed.clear()
