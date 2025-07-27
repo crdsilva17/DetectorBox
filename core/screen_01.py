@@ -37,6 +37,8 @@ class Screen01(QWidget):
         self.last_frame = None
         self.editing_roi = False
         self.drag_offset = None
+        self._width = 900
+        self._height = 900
         self.init_ui()
     # --- Métodos de manipulação de ROI via mouse ---
     def start_roi(self, event):
@@ -79,25 +81,64 @@ class Screen01(QWidget):
             return
         x, y = self._map_mouse_to_image(event, self.last_frame)
         rx, ry, rw, rh = self.roi_rect
-        h, w, _ = self.last_frame.shape
+        # Limite da ROI: apenas a área da imagem realmente visível no QLabel
+        # Calcula o retângulo visível em coordenadas da imagem original
+        scale = getattr(self, '_scale', 1.0)
+        offset_x = getattr(self, '_offset_x', 0)
+        offset_y = getattr(self, '_offset_y', 0)
+        if hasattr(self, '_img_shape'):
+            img_h, img_w = self._img_shape
+        else:
+            img_h, img_w, _ = self.last_frame.shape
+        # Tamanho do QLabel
+        label_h = self.label_original.height()
+        label_w = self.label_original.width()
+        # Tamanho do pixmap exibido
+        pixmap = self.label_original.pixmap()
+        if pixmap is not None:
+            pixmap_h = pixmap.height()
+            pixmap_w = pixmap.width()
+        else:
+            pixmap_h = label_h
+            pixmap_w = label_w
+        # Área visível da imagem original (em coordenadas da imagem)
+        vis_x0 = int(max(0, (0 - offset_x) / scale))
+        vis_y0 = int(max(0, (0 - offset_y) / scale))
+        vis_x1 = int(min(img_w, (pixmap_w - offset_x) / scale))
+        vis_y1 = int(min(img_h, (pixmap_h - offset_y) / scale))
+        # print(f"[DEBUG] ROI visível: x0={vis_x0}, y0={vis_y0}, x1={vis_x1}, y1={vis_y1}")
         if hasattr(self, 'resizing') and self.resizing:
             # Redimensionamento pelas bordas
             _, on_right, _, on_bottom = self.resize_dir
             new_rx, new_ry = rx, ry
             new_rw, new_rh = rw, rh
             if on_right:
-                new_rw = max(10, min(x - rx, w - rx))
+                new_rw = max(10, min(x - rx, vis_x1 - rx))
             if on_bottom:
-                new_rh = max(10, min(y - ry, h - ry))
+                new_rh = max(10, min(y - ry, vis_y1 - new_ry))
+                if new_ry + new_rh > vis_y1:
+                    new_rh = vis_y1 - new_ry
+                print(f"[DEBUG] Altura ROI ao redimensionar: {new_rh} (y={new_ry}, y_max={vis_y1})")
+            # Garante que a ROI não ultrapasse o topo
+            if new_ry < vis_y0:
+                new_ry = vis_y0
             self.roi_rect = (new_rx, new_ry, new_rw, new_rh)
         elif self.drag_offset:
             # Move ROI
             dx, dy = self.drag_offset
             new_rx = x - dx
             new_ry = y - dy
-            # Mantém ROI dentro da imagem
-            new_rx = max(0, min(new_rx, w - rw))
-            new_ry = max(0, min(new_ry, h - rh))
+            # Mantém ROI dentro da área visível
+            new_rx = max(vis_x0, min(new_rx, vis_x1 - rw))
+            if new_rx + rw > vis_x1:
+                new_rx = vis_x1 - rw
+            new_ry = max(vis_y0, min(new_ry, vis_y1 - rh))
+            if new_ry + rh > vis_y1:
+                new_ry = vis_y1 - rh
+            if new_ry < vis_y0:
+                new_ry = vis_y0
+            if new_ry + rh > vis_y1:
+                new_ry = vis_y1 - rh
             self.roi_rect = (new_rx, new_ry, rw, rh)
         self.last_mouse_pos = (x, y)
         self.update_roi_overlay()
@@ -127,53 +168,118 @@ class Screen01(QWidget):
 
     def init_ui(self):
         self.setWindowTitle('DetectorBox - Seleção de Câmera e Detector')
-        self.setFixedSize(1024, 768)
-        self.vlayout = QVBoxLayout()
+        # Não define tamanho fixo, janela será maximizada pelo main.py
+
+        from PyQt5.QtWidgets import QHBoxLayout
+        import os
+        import numpy as np
+
+        # Layout principal horizontal
+        main_layout = QHBoxLayout()
+
+        # --- Menu lateral (VBox) ---
+        menu_layout = QVBoxLayout()
+        menu_layout.setSpacing(15)
 
         # Dropdown para seleção de câmera
         self.combo_camera = QComboBox()
         self.combo_camera.addItems(list(self.cameras.keys()))
         self.combo_camera.currentIndexChanged.connect(self.on_camera_change)
-        self.vlayout.addWidget(self.combo_camera)
+        menu_layout.addWidget(self.combo_camera)
 
-        # Botão para criar nova caixa/recipe
-        self.btn_new_box = QPushButton('Nova Caixa/Recipe')
-        self.vlayout.addWidget(self.btn_new_box)
 
         # Lista de seleção de recipes existentes
-        import os
         self.recipe_dir = os.path.join(os.path.dirname(__file__), '..', 'recipes')
         os.makedirs(self.recipe_dir, exist_ok=True)
         self.combo_recipe = QComboBox()
         self.update_recipe_list()
-        self.vlayout.addWidget(self.combo_recipe)
+        menu_layout.addWidget(self.combo_recipe)
+
+        # Botão para criar nova caixa/recipe
+        self.btn_new_box = QPushButton('Nova Caixa/Recipe')
+        menu_layout.addWidget(self.btn_new_box)
 
         # Botão de captura
         self.capture_btn = QPushButton('Capturar Imagem')
+        self.capture_btn.setFixedSize(180, 50)
+        font = self.capture_btn.font()
+        font.setPointSize(14)
+        self.capture_btn.setFont(font)
         self.capture_btn.clicked.connect(self.capture_image)
-        self.vlayout.addWidget(self.capture_btn)
+        menu_layout.addWidget(self.capture_btn)
 
         # Botão para editar ROI
         self.btn_edit_roi = QPushButton('Editar ROI')
         self.btn_edit_roi.setCheckable(True)
         self.btn_edit_roi.toggled.connect(self.toggle_edit_roi)
-        self.vlayout.addWidget(self.btn_edit_roi)
+        menu_layout.addWidget(self.btn_edit_roi)
 
-        # Labels para imagens
-        import numpy as np
+        # Expansor para empurrar os botões para o topo
+        menu_layout.addStretch(1)
+
+        # --- Área de imagens (VBox) ---
+        images_layout = QVBoxLayout()
+        images_layout.setSpacing(20)
+
+
+
+        from PyQt5.QtWidgets import QSizePolicy
+        from PyQt5.QtGui import QGuiApplication
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None and hasattr(screen, 'size'):
+            screen_size = screen.size()
+            max_width = int(screen_size.width() * 0.8)
+            max_height = int(max_width * 9 / 16)  # Mantém proporção 16:9
+        else:
+            # Valor padrão caso não consiga obter o tamanho da tela
+            max_width = 1536  # 80% de 1920
+            max_height = int(max_width * 9 / 16)  # Mantém proporção 16:9
+
+        # Container horizontal para imagem original
+        original_container = QWidget()
+        original_hbox = QHBoxLayout()
+        original_hbox.setContentsMargins(0, 0, 0, 0)
+        original_hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_original = ROILabel()
+        # Remover tamanho mínimo fixo para permitir expansão
+        # self.label_original.setMinimumSize(self._width, self._height)
+        self.label_original.setMaximumSize(max_width, max_height)
+        self.label_original.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.label_original.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_original.setMouseTracking(True)
+        self.label_original.setScaledContents(False)
         self.label_original.parent_screen = self
-        self.vlayout.addWidget(self.label_original)
+        original_hbox.addWidget(self.label_original)
+        original_container.setLayout(original_hbox)
+        images_layout.addWidget(original_container)
 
+        # Container horizontal para imagem processada
+        processed_container = QWidget()
+        processed_hbox = QHBoxLayout()
+        processed_hbox.setContentsMargins(0, 0, 0, 0)
+        processed_hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.label_processed = QLabel()
+        # self.label_processed.setMinimumSize(self._width, self._height)
+        self.label_processed.setMaximumSize(max_width, max_height)
+        self.label_processed.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.label_processed.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.vlayout.addWidget(self.label_processed)
-        self.setLayout(self.vlayout)
+        self.label_processed.setScaledContents(False)
+        processed_hbox.addWidget(self.label_processed)
+        processed_container.setLayout(processed_hbox)
+        images_layout.addWidget(processed_container)
+        # Adiciona um espaçador vertical para evitar expansão vertical indesejada
+        from PyQt5.QtWidgets import QSpacerItem, QSizePolicy as QSP
+        images_layout.addSpacerItem(QSpacerItem(20, 40, QSP.Minimum, QSP.Expanding))
+
+        # Adiciona layouts ao layout principal
+        main_layout.addLayout(menu_layout, stretch=0)
+        main_layout.addSpacing(30)
+        main_layout.addLayout(images_layout, stretch=3)
+
+        self.setLayout(main_layout)
 
         # Imagem preta inicial padronizada
-        black_img = np.zeros((480, 640, 3), dtype=np.uint8)
+        black_img = np.zeros((max_height, max_width, 3), dtype=np.uint8)
         self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
@@ -250,7 +356,7 @@ class Screen01(QWidget):
         camera_name = self.combo_camera.currentText()
         self.selected_camera = self.cameras[camera_name]
         # Redesenha imagem preta e ROI ao trocar de câmera
-        black_img = np.zeros((480, 640, 3), dtype=np.uint8)
+        black_img = np.zeros((self._width, self._height, 3), dtype=np.uint8)
         self.last_frame = black_img.copy()
         self.show_image(self.label_original, black_img)
         self.show_image(self.label_processed, black_img)
@@ -292,11 +398,14 @@ class Screen01(QWidget):
         h, w, ch = img.shape
         bytes_per_line = ch * w
         qt_img = QImage(img.data, w, h, bytes_per_line, QImage.Format_BGR888)
-        # Calcula o tamanho do QLabel
-        label_width = label.width() if label.width() > 1 else 480
-        label_height = label.height() if label.height() > 1 else 640
+        # Calcula o tamanho máximo possível mantendo proporção widescreen
+        label_width = label.width() if label.width() > 1 else max(self._width, 640)
+        label_height = label.height() if label.height() > 1 else max(self._height, 480)
+        # Mantém proporção da imagem
         pixmap = QPixmap.fromImage(qt_img)
-        scaled_pixmap = pixmap.scaled(label_width, label_height, Qt.AspectRatioMode.KeepAspectRatio)
+        scaled_pixmap = pixmap.scaled(label_width, label_height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        # Centraliza a imagem no QLabel
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         label.setPixmap(scaled_pixmap)
         # Atualiza escala e offsets para conversão de coordenadas
         if label == self.label_original:
@@ -305,6 +414,5 @@ class Screen01(QWidget):
             self._scale = min(label_width / w, label_height / h)
             self._offset_x = (label_width - sw) // 2
             self._offset_y = (label_height - sh) // 2
-            # self.last_frame NÃO deve ser atualizada aqui!
 
 

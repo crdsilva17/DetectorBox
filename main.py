@@ -25,7 +25,7 @@ def main():
     detectors = Detector()
     # Cria a janela principal
     window = Screen01(cameras, detectors)
-    window.show()
+    window.showMaximized()
     app.exec_()
     # Libera recursos das câmeras
     for cam in cameras.values():
