@@ -1,27 +1,18 @@
-from calendar import c
-import re
 import cv2
 
-from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox
-from PyQt5.QtGui import QPixmap, QImage, QMouseEvent
+import os
+import numpy as np
+
+from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox, \
+    QHBoxLayout, QSizePolicy, QInputDialog
+from PyQt5.QtGui import QPixmap, QImage, QCursor
+from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
-from numpy import integer
+
+from core.ROILabel import ROILabel
 
 
-# Subclasse QLabel para capturar eventos de mouse corretamente
-class ROILabel(QLabel):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.parent_screen = None
-    def mousePressEvent(self, ev):
-        if self.parent_screen and isinstance(ev, QMouseEvent) and ev.button() == 1:
-            self.parent_screen.start_roi(ev)
-    def mouseMoveEvent(self, ev):
-        if self.parent_screen and isinstance(ev, QMouseEvent) and ev.buttons() & 1:
-            self.parent_screen.update_roi(ev)
-    def mouseReleaseEvent(self, ev):
-        if self.parent_screen and isinstance(ev, QMouseEvent) and ev.button() == 1:
-            self.parent_screen.end_roi(ev)
+
 
 class Screen01(QWidget):
     def __init__(self, cameras, detector):
@@ -171,12 +162,6 @@ class Screen01(QWidget):
 
     def init_ui(self):
         self.setWindowTitle('DetectorBox - Seleção de Câmera e Detector')
-        # Não define tamanho fixo, janela será maximizada pelo main.py
-
-        from PyQt5.QtWidgets import QHBoxLayout
-        import os
-        import numpy as np
-
         # Layout principal horizontal
         main_layout = QHBoxLayout()
 
@@ -232,10 +217,6 @@ class Screen01(QWidget):
         images_layout = QVBoxLayout()
         images_layout.setSpacing(20)
 
-
-
-        from PyQt5.QtWidgets import QSizePolicy
-        from PyQt5.QtGui import QGuiApplication
         screen = QGuiApplication.primaryScreen()
         if screen is not None and hasattr(screen, 'size'):
             screen_size = screen.size()
@@ -278,9 +259,6 @@ class Screen01(QWidget):
         processed_hbox.addWidget(self.label_processed)
         processed_container.setLayout(processed_hbox)
         images_layout.addWidget(processed_container)
-        # Adiciona um espaçador vertical para evitar expansão vertical indesejada
-        # from PyQt5.QtWidgets import QSpacerItem, QSizePolicy as QSP
-        # images_layout.addSpacerItem(QSpacerItem(20, 40, QSP.Minimum, QSP.Expanding))
 
         # Adiciona layouts ao layout principal
         main_layout.addLayout(menu_layout, stretch=0)
@@ -299,7 +277,6 @@ class Screen01(QWidget):
         self.on_camera_change(self.combo_camera.currentIndex())  # Seleciona a primeira câmera por padrão
 
     def toggle_edit_roi(self, checked):
-        from PyQt5.QtGui import QCursor
         self.editing_roi = checked
         if checked:
             self.label_original.setCursor(QCursor(Qt.CursorShape.SizeAllCursor))
@@ -310,7 +287,6 @@ class Screen01(QWidget):
 
     def update_recipe_list(self):
         self.combo_recipe.clear()
-        import os
         recipes = [f.removesuffix('.json') for f in os.listdir(self.recipe_dir) if f.endswith('.json')]
         self.combo_recipe.addItems(recipes)
         if recipes:
@@ -323,8 +299,6 @@ class Screen01(QWidget):
         print(f"[DEBUG] Receita selecionada: {self.selected_recipe}")
 
     def create_new_box(self):
-        from PyQt5.QtWidgets import QInputDialog
-        import os
         name, ok = QInputDialog.getText(self, 'New Box/Recipe', 'FileName of Box:')
         if ok and name:
             path = os.path.join(self.recipe_dir, f'{name}.json')
@@ -340,10 +314,6 @@ class Screen01(QWidget):
             with open(path, 'w') as f:
                 json.dump(box_data, f, indent=2)
             self.update_recipe_list()
-
-        # self.drag_offset = None
-        # self.resizing = False
-        # self.update_roi_overlay(final=True)
 
     def update_roi_overlay(self, final=False):
         # Desenha o retângulo da ROI sobre a última imagem capturada
@@ -367,7 +337,6 @@ class Screen01(QWidget):
         self.show_image(self.label_original, img)
 
     def on_camera_change(self, index):
-        import numpy as np
         camera_name = self.combo_camera.currentText()
         self.selected_camera = self.cameras[camera_name]
         # Redesenha imagem preta e ROI ao trocar de câmera
