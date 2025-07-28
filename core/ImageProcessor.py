@@ -15,3 +15,8 @@ class ImageProcessor:
     def apply_gaussian_blur(image: ndarray, kernel_size: tuple = (5, 5)) -> ndarray:
         return cv2.GaussianBlur(image, kernel_size, 0)
     
+    @staticmethod
+    def Canny(image: ndarray, threshold: int = 127) -> ndarray:
+        _, binary_image = cv2.threshold(image, threshold, 255, cv2.THRESH_BINARY)
+        return binary_image
+    

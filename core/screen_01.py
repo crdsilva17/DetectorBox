@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox, \
-    QHBoxLayout, QSizePolicy, QInputDialog
+    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
@@ -189,6 +189,12 @@ class Screen01(QWidget):
         self.btn_new_box.setStyleSheet("background-color: #f0f0f0; color: black;")
         menu_layout.addWidget(self.btn_new_box)
 
+        # Botão para carregar imagem
+        self.btn_load_image = QPushButton('Load Image')
+        self.btn_load_image.clicked.connect(lambda: self.load_image(QFileDialog.getOpenFileName(self, "Select Image",
+                                                                                                "./resource", "Images (*.png *.jpg)")))
+        menu_layout.addWidget(self.btn_load_image)
+
         # Botão para editar ROI
         self.btn_edit_roi = QPushButton('Edit Area')
         self.btn_edit_roi.setFixedSize(200, 50)
@@ -336,6 +342,37 @@ class Screen01(QWidget):
             cv2.circle(img, center, r, (0, 128, 255), -1)
         self.show_image(self.label_original, img)
 
+    def load_image(self, filename):
+        if not os.path.exists(filename):
+            return
+        image = cv2.imread(filename)
+        if image is None:
+            raise ValueError(f"Could not read image file {filename}.")
+        # Redimensiona a imagem para o tamanho máximo permitido
+        frame = cv2.resize(image, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+        self.last_frame = frame.copy()
+        # self.show_image(self.label_original, image)
+        self.update_roi_overlay()
+        # Recorta ROI para processamento
+        if self.roi_rect is not None:
+            rx, ry, rw, rh = self.roi_rect
+            roi = frame[ry:ry+rh, rx:rx+rw]
+        else:
+            roi = frame
+        # Processamento pelo detector
+        try:
+            processed, canny = self.selected_detector.detect(roi)
+            processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+            print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
+        except Exception as e:
+            self.label_processed.setText(f'Erro no processamento: {e}')
+            return
+        # Se imagem processada for 2D, converte para 3 canais para exibir
+        if len(processed.shape) == 2:
+            processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
+            canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
+        self.show_image(self.label_processed, processed)
+
     def on_camera_change(self, index):
         camera_name = self.combo_camera.currentText()
         self.selected_camera = self.cameras[camera_name]
@@ -369,7 +406,7 @@ class Screen01(QWidget):
             roi = frame
         # Processamento pelo detector
         try:
-            processed = self.selected_detector.detect(roi)
+            processed, canny = self.selected_detector.detect(roi)
             processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
             print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
         except Exception as e:
@@ -378,6 +415,7 @@ class Screen01(QWidget):
         # Se imagem processada for 2D, converte para 3 canais para exibir
         if len(processed.shape) == 2:
             processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
+            canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
         self.show_image(self.label_processed, processed)
 
     def show_image(self, label, img):
