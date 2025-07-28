@@ -1,10 +1,11 @@
+from tkinter import N
 import cv2
 
 import os
 import numpy as np
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox, \
-    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog
+    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog, QMenuBar, QMenu
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
@@ -161,16 +162,31 @@ class Screen01(QWidget):
         return x_img, y_img
 
     def init_ui(self):
-        self.setWindowTitle('DetectorBox - Seleção de Câmera e Detector')
+        self.setWindowTitle('DetectorBox - Inspetor de Caixas')
         # Layout principal horizontal
         main_layout = QHBoxLayout()
 
         # --- Menu lateral (VBox) ---
         menu_layout = QVBoxLayout()
+        menu_layout.setContentsMargins(20, 20, 20, 20)
+        menu_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
         menu_layout.setSpacing(15)
+
+        # Menu bar
+        menu_bar = QMenuBar(self)
+        menu_bar.setStyleSheet("background-color: #fcfcfc; color: black; font-size: 16px; font-weight: bold;")
+        main_layout.setMenuBar(menu_bar)
+        file_menu = QMenu('File', self)
+        file_menu.addAction('Save Image', self.save_image)
+        file_menu.addAction('Load Recipe', lambda: self.on_recipe_change(QFileDialog.getOpenFileName(self, "Select Image",
+                                                                                                "./recipes", "Images (*.json)")[0]))
+        file_menu.addAction('Exit', self.close)
+        menu_bar.addMenu(file_menu)
 
         # Dropdown para seleção de câmera
         self.combo_camera = QComboBox()
+        self.combo_camera.setFixedSize(200, 40)
+        self.combo_camera.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 16px; font-weight: bold;")
         self.combo_camera.addItems(list(self.cameras.keys()))
         self.combo_camera.currentIndexChanged.connect(self.on_camera_change)
         menu_layout.addWidget(self.combo_camera)
@@ -180,32 +196,44 @@ class Screen01(QWidget):
         self.recipe_dir = os.path.join(os.path.dirname(__file__), '..', 'recipes')
         os.makedirs(self.recipe_dir, exist_ok=True)
         self.combo_recipe = QComboBox()
+        self.combo_recipe.setFixedSize(200, 40)
+        self.combo_recipe.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 16px; font-weight: bold;")
         self.update_recipe_list()
         menu_layout.addWidget(self.combo_recipe)
 
         # Botão para criar nova caixa/recipe
         self.btn_new_box = QPushButton('New Recipe')
+        self.btn_new_box.setFixedSize(200, 40)
         self.btn_new_box.clicked.connect(self.create_new_box)
-        self.btn_new_box.setStyleSheet("background-color: #f0f0f0; color: black;")
+        self.btn_new_box.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 14px; font-weight: bold;")
         menu_layout.addWidget(self.btn_new_box)
+
+        # Botão para salvar imagem
+        self.btn_save_image = QPushButton('Save Image')
+        self.btn_save_image.setFixedSize(200, 60)
+        self.btn_save_image.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 14px; font-weight: bold;")
+        self.btn_save_image.clicked.connect(self.save_image)
+        menu_layout.addWidget(self.btn_save_image)
 
         # Botão para carregar imagem
         self.btn_load_image = QPushButton('Load Image')
+        self.btn_load_image.setFixedSize(200, 60)
+        self.btn_load_image.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 14px; font-weight: bold;")
         self.btn_load_image.clicked.connect(lambda: self.load_image(QFileDialog.getOpenFileName(self, "Select Image",
-                                                                                                "./resource", "Images (*.png *.jpg)")))
+                                                                                                "./resource", "Images (*.png *.jpg)")[0]))
         menu_layout.addWidget(self.btn_load_image)
 
         # Botão para editar ROI
         self.btn_edit_roi = QPushButton('Edit Area')
-        self.btn_edit_roi.setFixedSize(200, 50)
-        self.btn_edit_roi.setStyleSheet("background-color: #f0f0f0; color: black;")
+        self.btn_edit_roi.setFixedSize(200, 60)
+        self.btn_edit_roi.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 14px; font-weight: bold;")
         self.btn_edit_roi.setCheckable(True)
         self.btn_edit_roi.toggled.connect(self.toggle_edit_roi)
         menu_layout.addWidget(self.btn_edit_roi)
         
         # Botão de captura
         self.capture_btn = QPushButton('Photo')
-        self.capture_btn.setFixedSize(200, 80)
+        self.capture_btn.setFixedSize(200, 100)
         font = self.capture_btn.font()
         font.setPointSize(14)
         font.setBold(True)
@@ -300,7 +328,11 @@ class Screen01(QWidget):
         else:
             self.selected_recipe = None
 
-    def on_recipe_change(self, index):
+    def on_recipe_change(self, index = None):
+        if index is not None and index != self.combo_recipe.currentIndex():
+            recipe = index.split('/')[-1]
+            self.combo_recipe.setCurrentText(recipe.removesuffix('.json'))
+        
         self.selected_recipe = self.combo_recipe.currentText() + ".json"
         print(f"[DEBUG] Receita selecionada: {self.selected_recipe}")
 
@@ -320,6 +352,14 @@ class Screen01(QWidget):
             with open(path, 'w') as f:
                 json.dump(box_data, f, indent=2)
             self.update_recipe_list()
+    
+    def save_image(self):
+        if self.last_frame is None:
+            return
+        filename, _ = QFileDialog.getSaveFileName(self, "Save Image", "./resource", "Images (*.png)")
+        if filename:
+            cv2.imwrite(filename, self.last_frame)
+            print(f"[DEBUG] Imagem salva em: {filename}")
 
     def update_roi_overlay(self, final=False):
         # Desenha o retângulo da ROI sobre a última imagem capturada
@@ -341,24 +381,12 @@ class Screen01(QWidget):
             center = (int(rx+rw//2), int(ry+rh//2))
             cv2.circle(img, center, r, (0, 128, 255), -1)
         self.show_image(self.label_original, img)
-
-    def load_image(self, filename):
-        if not os.path.exists(filename):
-            return
-        image = cv2.imread(filename)
-        if image is None:
-            raise ValueError(f"Could not read image file {filename}.")
-        # Redimensiona a imagem para o tamanho máximo permitido
-        frame = cv2.resize(image, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
-        self.last_frame = frame.copy()
-        # self.show_image(self.label_original, image)
-        self.update_roi_overlay()
         # Recorta ROI para processamento
         if self.roi_rect is not None:
             rx, ry, rw, rh = self.roi_rect
-            roi = frame[ry:ry+rh, rx:rx+rw]
+            roi = img[ry:ry+rh, rx:rx+rw]
         else:
-            roi = frame
+            roi = img
         # Processamento pelo detector
         try:
             processed, canny = self.selected_detector.detect(roi)
@@ -372,6 +400,19 @@ class Screen01(QWidget):
             processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
             canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
         self.show_image(self.label_processed, processed)
+
+    def load_image(self, filename=""):
+        if not os.path.exists(filename):
+            return
+        image = cv2.imread(filename)
+        if image is None:
+            raise ValueError(f"Could not read image file {filename}.")
+        # Redimensiona a imagem para o tamanho máximo permitido
+        frame = cv2.resize(image, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+        self.last_frame = frame.copy()
+        # self.show_image(self.label_original, image)
+        self.update_roi_overlay()
+
 
     def on_camera_change(self, index):
         camera_name = self.combo_camera.currentText()
@@ -398,25 +439,7 @@ class Screen01(QWidget):
         # Exibe imagem original com ROI desenhada
         self.last_frame = frame.copy()
         self.update_roi_overlay()
-        # Recorta ROI para processamento
-        if self.roi_rect is not None:
-            rx, ry, rw, rh = self.roi_rect
-            roi = frame[ry:ry+rh, rx:rx+rw]
-        else:
-            roi = frame
-        # Processamento pelo detector
-        try:
-            processed, canny = self.selected_detector.detect(roi)
-            processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
-            print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
-        except Exception as e:
-            self.label_processed.setText(f'Erro no processamento: {e}')
-            return
-        # Se imagem processada for 2D, converte para 3 canais para exibir
-        if len(processed.shape) == 2:
-            processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
-            canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
-        self.show_image(self.label_processed, processed)
+        
 
     def show_image(self, label, img):
         print(f"[DEBUG] show_image: shape={img.shape} dtype={img.dtype}")
