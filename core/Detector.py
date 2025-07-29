@@ -29,7 +29,7 @@ class Detector(ImageProcessor.ImageProcessor):
             raise TypeError("Input image must be a numpy ndarray.")
         img = self.binary_inv_canny(image)
         img = cv2.Canny(img, 100, 200)
-        circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 1.2, 100)
+        circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 2, 50)
         
         if circles is not None:
             circles = circles[0, :, :].astype(int)

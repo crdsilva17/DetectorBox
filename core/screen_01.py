@@ -416,7 +416,7 @@ class Screen01(QWidget):
             processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
             self.image_canny = cv2.cvtColor(self.image_canny, cv2.COLOR_GRAY2BGR)
         # Exibe imagem processada
-        self.show_image(self.label_processed, self.image_canny)
+        self.show_image(self.label_processed, processed)
 
     def load_image(self, filename=""):
         if not os.path.exists(filename):
