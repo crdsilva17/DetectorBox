@@ -20,6 +20,7 @@ class Screen01(QWidget):
         self.cameras = cameras  # Dict: {name: Camera}
         self.selected_camera = None
         self.selected_detector = detector
+        self.image_canny = None
         self.vlayout = QVBoxLayout()
         self.roi_start = [100, 100]
         self.roi_end = [250, 250]
@@ -388,17 +389,34 @@ class Screen01(QWidget):
             roi = img
         # Processamento pelo detector
         try:
-            processed, canny = self.selected_detector.detect(roi)
+            processed, self.image_canny = self.selected_detector.detect(roi)
             processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+            self.image_canny = cv2.resize(self.image_canny, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
             print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
         except Exception as e:
             self.label_processed.setText(f'Erro no processamento: {e}')
             return
+
+        # Inspeciona a imagem canny para validar quantos objetos circulares foram detectados
+        if self.image_canny is None:
+            return
+        
+        img, contours = self.selected_detector.detect_circles(processed)
+        self.image_canny = img
+        print(f"[DEBUG] Contornos detectados: {len(contours)}")
+        if contours:
+            self.label_processed.setText(f'Detected {len(contours)} objects.')
+        if len(contours) >= 12:
+            self.label_processed.setStyleSheet("color: green; font-size: 16px; font-weight: bold;")
+        else:
+            self.label_processed.setStyleSheet("color: red; font-size: 16px; font-weight: bold;")
+        
         # Se imagem processada for 2D, converte para 3 canais para exibir
         if len(processed.shape) == 2:
             processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
-            canny = cv2.cvtColor(canny, cv2.COLOR_GRAY2BGR)
-        self.show_image(self.label_processed, processed)
+            self.image_canny = cv2.cvtColor(self.image_canny, cv2.COLOR_GRAY2BGR)
+        # Exibe imagem processada
+        self.show_image(self.label_processed, self.image_canny)
 
     def load_image(self, filename=""):
         if not os.path.exists(filename):
