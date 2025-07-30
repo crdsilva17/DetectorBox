@@ -24,15 +24,25 @@ class Detector(ImageProcessor.ImageProcessor):
         image_canny = self.adaptive_canny(image_processed)
         return image_processed, image_canny
 
-    def detect_circles(self, image: ndarray) -> tuple[ndarray, list]:
+    def detect_circles(self, image: ndarray, dp=1.2, minDist=90, param1=100, adaptive=False, 
+                       param2=35, minRadius=30, maxRadius=40, size=(640, 480)) -> tuple[ndarray, list]:
         if not isinstance(image, ndarray):
             raise TypeError("Input image must be a numpy ndarray.")
-        img = self.binary_inv_canny(image)
-        img = cv2.Canny(img, 100, 200)
-        circles = cv2.HoughCircles(img, cv2.HOUGH_GRADIENT, 2, 50)
-        
+        image_resized = cv2.resize(image, (640, 480), interpolation=cv2.INTER_LINEAR)
+        image_gray = cv2.cvtColor(image_resized, cv2.COLOR_BGR2GRAY)
+        image_gray = cv2.medianBlur(image_gray, 5)
+        if adaptive:
+            image_gray = self.adaptive_canny(image_gray)
+        else:
+            image_gray = cv2.Canny(image_gray, 50, 150)
+        cv2.imshow("Canny Image", image_gray)
+        circles = cv2.HoughCircles(image_gray, cv2.HOUGH_GRADIENT, dp, minDist,
+                                   param1=param1, param2=param2, minRadius=minRadius, maxRadius=maxRadius)
+        output = image_resized.copy()
         if circles is not None:
             circles = circles[0, :, :].astype(int)
             for (x, y, r) in circles:
-                cv2.circle(image, (x, y), r, (0, 255, 0), 4)
-        return img, circles.tolist() if circles is not None else []
+                cv2.circle(output, (x, y), r, (0, 255, 0), 4)
+        # output = cv2.resize(output, (640, 480), interpolation=cv2.INTER_LINEAR)
+        return output, circles.tolist() if circles is not None else []
+    

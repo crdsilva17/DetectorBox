@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox, \
-    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog, QMenuBar, QMenu
+    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog, QMenuBar, QMenu, QSpinBox, QCheckBox
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
@@ -244,6 +244,74 @@ class Screen01(QWidget):
         self.capture_btn.clicked.connect(self.capture_image)
         menu_layout.addWidget(self.capture_btn)
 
+        # Parametros de tratamento de imagem
+        menu_hLayout = [QHBoxLayout() for _ in range(5)]
+        for hLayout in menu_hLayout:
+            hLayout.setContentsMargins(0, 0, 0, 0)
+            hLayout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            hLayout.setSpacing(10)
+            menu_layout.addLayout(hLayout)
+        self.edit_minDistance = QSpinBox()
+        self.edit_minDistance.setRange(0, 500)
+        self.edit_minDistance.setValue(90)
+        self.edit_minDistance.setObjectName("edit_minDistance")
+        self.edit_minDistance.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 20px; font-weight: bold;")
+        self.edit_minDistance.setFixedSize(100, 40)
+        label = QLabel("Min Distance")
+        label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_hLayout[0].addWidget(label)
+        menu_hLayout[0].addWidget(self.edit_minDistance)
+        self.edit_parameter1 = QSpinBox()
+        self.edit_parameter1.setRange(0, 500)
+        self.edit_parameter1.setValue(100)
+        self.edit_parameter1.setObjectName("edit_minDistance")
+        self.edit_parameter1.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 20px; font-weight: bold;")
+        self.edit_parameter1.setFixedSize(100, 40)
+        label = QLabel("Parameter 1")
+        label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_hLayout[1].addWidget(label)
+        menu_hLayout[1].addWidget(self.edit_parameter1)
+        self.edit_parameter2 = QSpinBox()
+        self.edit_parameter2.setRange(0, 500)
+        self.edit_parameter2.setValue(35)
+        self.edit_parameter2.setObjectName("edit_minDistance")
+        self.edit_parameter2.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 20px; font-weight: bold;")
+        self.edit_parameter2.setFixedSize(100, 40)
+        label = QLabel("Parameter 2")
+        label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_hLayout[2].addWidget(label)
+        menu_hLayout[2].addWidget(self.edit_parameter2)
+        self.edit_minRadius = QSpinBox()
+        self.edit_minRadius.setRange(0, 500)
+        self.edit_minRadius.setValue(30)
+        self.edit_minRadius.setObjectName("edit_minDistance")
+        self.edit_minRadius.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 20px; font-weight: bold;")
+        self.edit_minRadius.setFixedSize(100, 40)
+        label = QLabel("Min Radius")
+        label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_hLayout[3].addWidget(label)
+        menu_hLayout[3].addWidget(self.edit_minRadius)
+        self.edit_maxRadius = QSpinBox()
+        self.edit_maxRadius.setRange(0, 500)
+        self.edit_maxRadius.setValue(40)
+        self.edit_maxRadius.setObjectName("edit_minDistance")
+        self.edit_maxRadius.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 20px; font-weight: bold;")
+        self.edit_maxRadius.setFixedSize(100, 40)
+        label = QLabel("Max Radius")
+        label.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_hLayout[4].addWidget(label)
+        menu_hLayout[4].addWidget(self.edit_maxRadius)
+        self.adaptive_checkbox = QCheckBox("Adaptive Canny")
+        self.adaptive_checkbox.setStyleSheet("font-size: 20px; font-weight: bold; color: black;")
+        menu_layout.addWidget(self.adaptive_checkbox)
+        # altera valores
+        self.edit_minDistance.valueChanged.connect(self.update_roi_overlay)
+        self.edit_parameter1.valueChanged.connect(self.update_roi_overlay)
+        self.edit_parameter2.valueChanged.connect(self.update_roi_overlay)
+        self.edit_minRadius.valueChanged.connect(self.update_roi_overlay)
+        self.edit_maxRadius.valueChanged.connect(self.update_roi_overlay)
+        self.adaptive_checkbox.stateChanged.connect(self.update_roi_overlay)
+
         # Expansor para empurrar os botões para o topo
         menu_layout.addStretch(1)
 
@@ -259,7 +327,10 @@ class Screen01(QWidget):
         else:
             # Valor padrão caso não consiga obter o tamanho da tela
             max_width = 1536  # 80% de 1920
-            max_height = int(max_width * 9 / 16)  # Mantém proporção 16:9
+            max_height = int(max_width * 9 / 16)  # Mantém proporção 16:
+        
+        self._width = min(max_width, 1536)  # Limita a largura máxima
+        self._height = min(max_height, 500)  # Limita a altura máxima
 
         # Container horizontal para imagem original
         original_container = QWidget()
@@ -398,25 +469,23 @@ class Screen01(QWidget):
             return
 
         # Inspeciona a imagem canny para validar quantos objetos circulares foram detectados
+        self.image_canny, circles = self.selected_detector.detect_circles(roi, minDist=self.edit_minDistance.value(), 
+                                                                          size=(self._width, self._height),
+                                                                          param1=self.edit_parameter1.value(),
+                                                                            param2=self.edit_parameter2.value(),
+                                                                            minRadius=self.edit_minRadius.value(),
+                                                                            maxRadius=self.edit_maxRadius.value(),
+                                                                            adaptive=self.adaptive_checkbox.isChecked())
         if self.image_canny is None:
             return
         
-        img, contours = self.selected_detector.detect_circles(processed)
-        self.image_canny = img
-        print(f"[DEBUG] Contornos detectados: {len(contours)}")
-        if contours:
-            self.label_processed.setText(f'Detected {len(contours)} objects.')
-        if len(contours) >= 12:
-            self.label_processed.setStyleSheet("color: green; font-size: 16px; font-weight: bold;")
-        else:
-            self.label_processed.setStyleSheet("color: red; font-size: 16px; font-weight: bold;")
+        print(f"[DEBUG] circulos detectados: {len(circles)}")
         
         # Se imagem processada for 2D, converte para 3 canais para exibir
         if len(processed.shape) == 2:
             processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
-            self.image_canny = cv2.cvtColor(self.image_canny, cv2.COLOR_GRAY2BGR)
         # Exibe imagem processada
-        self.show_image(self.label_processed, processed)
+        self.show_image(self.label_processed, self.image_canny)
 
     def load_image(self, filename=""):
         if not os.path.exists(filename):
