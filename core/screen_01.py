@@ -4,7 +4,7 @@ import os
 import numpy as np
 
 from PyQt5.QtWidgets import QWidget, QLabel, QVBoxLayout, QPushButton, QComboBox, \
-    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog, QMenuBar, QMenu, QSpinBox, QCheckBox
+    QHBoxLayout, QSizePolicy, QInputDialog, QFileDialog, QMenuBar, QMenu, QSpinBox, QCheckBox, QMessageBox
 from PyQt5.QtGui import QPixmap, QImage, QCursor
 from PyQt5.QtGui import QGuiApplication
 from PyQt5.QtCore import Qt
@@ -178,10 +178,18 @@ class Screen01(QWidget):
         main_layout.setMenuBar(menu_bar)
         file_menu = QMenu('File', self)
         file_menu.addAction('Save Image', self.save_image)
+        file_menu.addAction('New Recipe', self.create_new_box)
+        file_menu.addAction('Save Recipe', self.save_recipe)
         file_menu.addAction('Load Recipe', lambda: self.on_recipe_change(QFileDialog.getOpenFileName(self, "Select Image",
                                                                                                 "./recipes", "Images (*.json)")[0]))
+        file_menu.addAction('Delete Recipe', self.delete_recipe)
         file_menu.addAction('Exit', self.close)
         menu_bar.addMenu(file_menu)
+        
+        setup_menu = QMenu('Setup', self)
+        setup_menu.addAction('Camera Select', lambda: self.combo_camera.showPopup())
+        setup_menu.addAction('Connection', lambda: None)
+        menu_bar.addMenu(setup_menu)
 
         # Dropdown para seleção de câmera
         self.combo_camera = QComboBox()
@@ -189,7 +197,8 @@ class Screen01(QWidget):
         self.combo_camera.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 16px; font-weight: bold;")
         self.combo_camera.addItems(list(self.cameras.keys()))
         self.combo_camera.currentIndexChanged.connect(self.on_camera_change)
-        menu_layout.addWidget(self.combo_camera)
+        # menu_layout.addWidget(self.combo_camera)
+
 
 
         # Lista de seleção de recipes existentes
@@ -199,6 +208,7 @@ class Screen01(QWidget):
         self.combo_recipe.setFixedSize(200, 40)
         self.combo_recipe.setStyleSheet("background-color: #f0f0f0; color: black; font-size: 16px; font-weight: bold;")
         self.update_recipe_list()
+        self.combo_recipe.currentIndexChanged.connect(self.on_recipe_change)
         menu_layout.addWidget(self.combo_recipe)
 
         # Botão para criar nova caixa/recipe
@@ -398,13 +408,75 @@ class Screen01(QWidget):
             self.selected_recipe = recipes[0]
         else:
             self.selected_recipe = None
+    
+    def save_recipe(self):
+        if self.selected_recipe is None:
+            return
+        path = os.path.join(self.recipe_dir, self.selected_recipe)
+        if not os.path.exists(path):
+            return
+        layout = []
+        info = ""
+        with open(path, 'r') as f:
+            import json
+            data = f.read()
+            json_data = json.loads(data)
+            layout = json_data.get('layout', [1, 1])
+            info = json_data.get('info')
+        
+        data_recipe = {
+                "layout": layout,
+                "info": info,
+                "minDistance": self.edit_minDistance.value(),
+                "parameter1": self.edit_parameter1.value(),
+                "parameter2": self.edit_parameter2.value(),
+                "minRadius": self.edit_minRadius.value(),
+                "maxRadius": self.edit_maxRadius.value(),
+                "adaptive": self.adaptive_checkbox.isChecked()
+            }
+        
+        with open(path, 'w') as f:
+            json.dump(data_recipe, f, indent=2)
+
+    def delete_recipe(self):
+        if self.selected_recipe is None:
+            return
+        if not self.selected_recipe.endswith(".json"):
+            self.selected_recipe = f"{self.selected_recipe}.json"
+        message = QMessageBox(self)
+        message.setText(f"Do you want to delete the recipe {self.selected_recipe}?")
+        message.setWindowTitle("Delete Recipe")
+        message.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
+        response = message.exec()
+        if self.selected_recipe is None or response == QMessageBox.Cancel:
+            return
+        path = os.path.join(self.recipe_dir, self.selected_recipe)
+        if os.path.exists(path):
+            os.remove(path)
+            print(f"[DEBUG] Receita {self.selected_recipe} deletada.")
+            self.update_recipe_list()
+           
+
 
     def on_recipe_change(self, index = None):
         if index is not None and index != self.combo_recipe.currentIndex():
             recipe = index.split('/')[-1]
             self.combo_recipe.setCurrentText(recipe.removesuffix('.json'))
         
-        self.selected_recipe = self.combo_recipe.currentText() + ".json"
+        self.selected_recipe = f"{self.combo_recipe.currentText()}.json"
+        path = os.path.join(self.recipe_dir, self.selected_recipe)
+        if not os.path.exists(path):
+            return
+        with open(path, 'r') as f:
+            import json
+            data = f.read()
+            json_data = json.loads(data)
+            self.edit_minDistance.setValue(json_data.get("minDistance"))
+            self.edit_parameter1.setValue(json_data.get("parameter1"))
+            self.edit_parameter2.setValue(json_data.get("parameter2"))
+            self.edit_minRadius.setValue(json_data.get("minRadius"))
+            self.edit_maxRadius.setValue(json_data.get("maxRadius"))
+            self.adaptive_checkbox.setChecked(json_data.get("adaptive"))
         print(f"[DEBUG] Receita selecionada: {self.selected_recipe}")
 
     def create_new_box(self):
@@ -419,7 +491,16 @@ class Screen01(QWidget):
             if not rows or not ok:
                 return
 
-            box_data = {"layout": [int(columns), int(rows)], "info": name}
+            box_data = {
+                        "layout": [int(columns), int(rows)], 
+                        "info": name,
+                        "minDistance": self.edit_minDistance.value(),
+                        "parameter1": self.edit_parameter1.value(),
+                        "parameter2": self.edit_parameter2.value(),
+                        "minRadius": self.edit_minRadius.value(),
+                        "maxRadius": self.edit_maxRadius.value(),
+                        "adaptive": self.adaptive_checkbox.isChecked()
+                        }
             with open(path, 'w') as f:
                 json.dump(box_data, f, indent=2)
             self.update_recipe_list()

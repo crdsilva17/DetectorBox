@@ -3,5 +3,11 @@
     3,
     5
   ],
-  "info": "caixa3x5"
+  "info": "caixa3x5",
+  "minDistance": 90,
+  "parameter1": 100,
+  "parameter2": 35,
+  "minRadius": 30,
+  "maxRadius": 40,
+  "adaptive": false
 }
