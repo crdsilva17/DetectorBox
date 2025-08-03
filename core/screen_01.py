@@ -34,6 +34,8 @@ class Screen01(QWidget):
         self.drag_offset = None
         self._width = 1536
         self._height = 500
+        self.oring_height = 640
+        self.oring_width = 640
         self.init_ui()
     # --- Métodos de manipulação de ROI via mouse ---
     def start_roi(self, event):
@@ -536,37 +538,56 @@ class Screen01(QWidget):
         # Recorta ROI para processamento
         if self.roi_rect is not None:
             rx, ry, rw, rh = self.roi_rect
-            roi = img[ry:ry+rh, rx:rx+rw]
+            roi = cv2.resize(img[ry:ry+rh, rx:rx+rw], (640, 640), interpolation=cv2.INTER_LINEAR)
         else:
             roi = img
         # Processamento pelo detector
         try:
-            processed, self.image_canny = self.selected_detector.detect(roi)
-            processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
-            self.image_canny = cv2.resize(self.image_canny, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
-            print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
+            # Detecção aprimorada
+            detections, processed = self.selected_detector.detect_bottles_in_box_enhanced(
+                roi, 
+                box_roi=None,
+                use_preprocessing=True,
+                use_hough=True,
+                minDist=self.edit_minDistance.value(),
+                param1=self.edit_parameter1.value(),
+                param2=self.edit_parameter2.value(),
+                min_radius=self.edit_minRadius.value(), 
+                max_radius=self.edit_maxRadius.value()
+            )
+            # Detalhes das detecções
+            for i, det in enumerate(detections):
+                source = det.get('source', 'unknown')
+                conf = det['confidence']
+                print(f"Garrafa {i+1}: {source} (confiança: {conf:.2f})")
+
+        # try:
+        #     processed, self.image_canny = self.selected_detector.detect(roi)
+        #     processed = cv2.resize(processed, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+        #     self.image_canny = cv2.resize(self.image_canny, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
+        #     print(f"[DEBUG] Imagem processada: shape={processed.shape} dtype={processed.dtype}")
         except Exception as e:
             self.label_processed.setText(f'Erro no processamento: {e}')
             return
 
         # Inspeciona a imagem canny para validar quantos objetos circulares foram detectados
-        self.image_canny, circles = self.selected_detector.detect_circles(roi, minDist=self.edit_minDistance.value(), 
-                                                                          size=(self._width, self._height),
-                                                                          param1=self.edit_parameter1.value(),
-                                                                            param2=self.edit_parameter2.value(),
-                                                                            minRadius=self.edit_minRadius.value(),
-                                                                            maxRadius=self.edit_maxRadius.value(),
-                                                                            adaptive=self.adaptive_checkbox.isChecked())
-        if self.image_canny is None:
+        # self.image_canny, circles = self.selected_detector.detect_circles(roi, minDist=self.edit_minDistance.value(), 
+        #                                                                   size=(self._width, self._height),
+        #                                                                   param1=self.edit_parameter1.value(),
+        #                                                                     param2=self.edit_parameter2.value(),
+        #                                                                     minRadius=self.edit_minRadius.value(),
+        #                                                                     maxRadius=self.edit_maxRadius.value(),
+        #                                                                     adaptive=self.adaptive_checkbox.isChecked())
+        if processed is None:
             return
         
-        print(f"[DEBUG] circulos detectados: {len(circles)}")
+        # print(f"[DEBUG] circulos detectados: {len(circles)}")
         
         # Se imagem processada for 2D, converte para 3 canais para exibir
-        if len(processed.shape) == 2:
-            processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
+        # if len(processed.shape) == 2:
+        #     processed = cv2.cvtColor(processed, cv2.COLOR_GRAY2BGR)
         # Exibe imagem processada
-        self.show_image(self.label_processed, self.image_canny)
+        self.show_image(self.label_processed, processed)
 
     def load_image(self, filename=""):
         if not os.path.exists(filename):
@@ -575,9 +596,10 @@ class Screen01(QWidget):
         if image is None:
             raise ValueError(f"Could not read image file {filename}.")
         # Redimensiona a imagem para o tamanho máximo permitido
+        self.oring_width, self.oring_height = image.shape[:2]
         frame = cv2.resize(image, (self._width, self._height), interpolation=cv2.INTER_LINEAR)
         self.last_frame = frame.copy()
-        # self.show_image(self.label_original, image)
+        self.show_image(self.label_original, frame)
         self.update_roi_overlay()
 
 

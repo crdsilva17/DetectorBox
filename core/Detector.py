@@ -3,7 +3,6 @@ from core import ImageProcessor
 from numpy import ndarray
 import cv2
 
-
 class Detector(ImageProcessor.ImageProcessor):
     def __init__(self):
         super().__init__()

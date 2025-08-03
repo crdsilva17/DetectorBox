@@ -1,6 +1,7 @@
 from core.Camera import Camera
-from core.Detector import Detector
+from core.BottleDetector import BottleDetector
 from core.screen_01 import Screen01
+
 
 import cv2 
 import sys
@@ -22,7 +23,7 @@ def main():
         sys.exit(1)
     # Cria detector disponível
     # Aqui você pode especificar o caminho do modelo que deseja usar
-    detectors = Detector()
+    detectors = BottleDetector()
     # Cria a janela principal
     window = Screen01(cameras, detectors)
     window.showMaximized()
